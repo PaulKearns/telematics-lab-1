@@ -13,9 +13,10 @@ class Robot:
         self.id = id
         self.position = position
         self.battery = battery
+        self.is_suspended = False
     
     def move(self, direction):
-        sucess = False
+        success = False
         if direction == "up":
             if SENSOR.with_obstacle(self.position[0] - 1, self.position[1]):
                 self.position[0] -= 1
@@ -32,13 +33,13 @@ class Robot:
             if SENSOR.with_obstacle(self.position[0] + 1, self.position[1]):
                 self.position[0] += 1
                 success = True
-        if sucess:
+        if success:
             print("OK")
         else:
             print("KO")
 
     
-    def has_treasure():
+    def has_treasure(self):
         if SENSOR.with_treasure(self.position[0], self.position[1]):
             print("Treasure")
         else:
@@ -47,15 +48,17 @@ class Robot:
 
 if __name__ == "__main__":
     def sigint_handler(sig, frame):
+        # TODO: is this correct for pausing the robot?
         signal.signal(signal.SIGALRM, signal.SIG_IGN)
     
+    # TODO: is this correct for resuming the robot?
     def sigquit_handler(sig, frame):
         signal.signal(signal.SIGALRM, sigalrm_handler)
 
     def sigtstp_handler(sig, frame):
         print(f"Robot ID: {robot.id}\nRobot position: {robot.position}\nRobot battery level: {robot.battery}")
 
-    def siguser1_handler(sig, frame):
+    def sigusr1_handler(sig, frame):
         robot.battery = 100
 
     def sigalrm_handler(sig, frame):
@@ -63,9 +66,10 @@ if __name__ == "__main__":
         signal.alarm(1)
 
     signal.signal(signal.SIGINT, sigint_handler)
-    signal.pause()
-
-
+    signal.signal(signal.SIGQUIT, sigquit_handler)
+    signal.signal(signal.SIGTSTP, sigtstp_handler)
+    signal.signal(signal.SIGUSR1, sigusr1_handler)
+    signal.signal(signal.SIGALRM, sigalrm_handler)
 
     sys.stderr.write(os.getpid())
 
@@ -96,6 +100,8 @@ if __name__ == "__main__":
         if len(action) > 1:
             direction = action[1]
         action = action[0]
+        if action != 'exit' and robot.is_suspended:
+            print("Robot {robot.id} is stopped")
         match action:
             case 'mv':
                 robot.move(direction)
