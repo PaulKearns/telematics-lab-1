@@ -20,10 +20,11 @@ class Robot:
             exit()
     
     def move(self, direction):
+        if self.is_suspended:
+            print(f"Robot 3 is stopped")
+            return
         success = False
-        if self.battery <= 5:
-            self.is_suspended = True
-        if not self.is_suspended:
+        if self.battery >= 5:
             if direction == "up":
                 if SENSOR.with_obstacle(self.position[0] - 1, self.position[1]):
                     self.position[0] -= 1
@@ -49,23 +50,42 @@ class Robot:
 
     
     def has_treasure(self):
+        if self.is_suspended:
+            print(f"Robot 3 is stopped")
+            return
         if SENSOR.with_treasure(self.position[0], self.position[1]):
             print(f"Treasure at {self.position[0]} {self.position[1]}")
         else:
-            print("Water")
+            print(f"Water at {self.position[0]} {self.position[1]}")
+
+    def print_battery(self):
+        if self.is_suspended:
+            print(f"Robot 3 is stopped")
+            return
+        print(f'Battery: {robot.battery}')
+
+    def print_position(self):
+        if self.is_suspended:
+            print(f"Robot 3 is stopped")
+            return
+        print(f'Position: {robot.position[0]} {robot.position[1]}')
+
 
 
 if __name__ == "__main__":
     def sigint_handler(sig, frame):
-        # TODO: is this correct for pausing the robot?
+        # TODO: is this correct for pausing the robot?)
+        robot.is_suspended = True
         signal.signal(signal.SIGALRM, signal.SIG_IGN)
     
     # TODO: is this correct for resuming the robot?
     def sigquit_handler(sig, frame):
+        robot.is_suspended = False
         signal.signal(signal.SIGALRM, sigalrm_handler)
+        signal.alarm(1)
 
     def sigtstp_handler(sig, frame):
-        print(f"Robot ID: {robot.id}\nRobot position: {robot.position}\nRobot battery level: {robot.battery}")
+        print(f"id: {robot.id} P: {robot.position} Bat: {robot.battery}")
 
     def sigusr1_handler(sig, frame):
         robot.battery = 100
@@ -73,8 +93,6 @@ if __name__ == "__main__":
     def sigalrm_handler(sig, frame):
         if robot.battery > 0:
             robot.battery -= 1
-        else:
-            robot.is_suspended = True
         signal.alarm(1)
 
     signal.signal(signal.SIGINT, sigint_handler)
@@ -120,14 +138,14 @@ if __name__ == "__main__":
             case 'mv':
                 robot.move(direction)
             case 'bat':
-                print(f'Battery: {robot.battery}')
+                robot.print_battery()
             case 'pos':
-                print(f'Position: {robot.position[0]} {robot.position[1]}')
+                robot.print_position()
             case 'tr':
                 robot.has_treasure()
             case 'exit':
-                print(f'Position: {robot.position[0]} {robot.position[1]}')
-                print(f'Battery: {robot.battery}')
+                robot.print_position
+                robot.print_battery
                 break
             case _:
                 print("Invalid command")
