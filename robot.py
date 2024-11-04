@@ -11,37 +11,46 @@ class Robot:
     # Position = (row, col)
     def __init__(self, id, position=[0,0], battery=100):
         self.id = id
-        self.position = position
         self.battery = battery
         self.is_suspended = False
+        if SENSOR.with_obstacle(position[0], position[1]):
+            self.position = position
+        else:
+            print("Invalid initial position")
+            exit()
     
     def move(self, direction):
         success = False
-        if direction == "up":
-            if SENSOR.with_obstacle(self.position[0] - 1, self.position[1]):
-                self.position[0] -= 1
-                success = True
-        elif direction == "left":
-            if SENSOR.with_obstacle(self.position[0], self.position[1] - 1):
-                self.position[1] -= 1
-                success = True
-        elif direction == "right":
-            if SENSOR.with_obstacle(self.position[0], self.position[1] + 1):
-                self.position[1] += 1
-                success = True
-        else:
-            if SENSOR.with_obstacle(self.position[0] + 1, self.position[1]):
-                self.position[0] += 1
-                success = True
+        if self.battery <= 5:
+            self.is_suspended = True
+        if not self.is_suspended:
+            if direction == "up":
+                if SENSOR.with_obstacle(self.position[0] - 1, self.position[1]):
+                    self.position[0] -= 1
+                    success = True
+            elif direction == "left":
+                if SENSOR.with_obstacle(self.position[0], self.position[1] - 1):
+                    self.position[1] -= 1
+                    success = True
+            elif direction == "right":
+                if SENSOR.with_obstacle(self.position[0], self.position[1] + 1):
+                    self.position[1] += 1
+                    success = True
+            else:
+                if SENSOR.with_obstacle(self.position[0] + 1, self.position[1]):
+                    self.position[0] += 1
+                    success = True
+
         if success:
             print("OK")
+            self.battery -= 5
         else:
-            print("KO")
+            print(f"Robot 3 cannot move {direction}\nKO")
 
     
     def has_treasure(self):
         if SENSOR.with_treasure(self.position[0], self.position[1]):
-            print("Treasure")
+            print(f"Treasure at {self.position[0]} {self.position[1]}")
         else:
             print("Water")
 
@@ -62,7 +71,10 @@ if __name__ == "__main__":
         robot.battery = 100
 
     def sigalrm_handler(sig, frame):
-        robot.battery -= 1
+        if robot.battery > 0:
+            robot.battery -= 1
+        else:
+            robot.is_suspended = True
         signal.alarm(1)
 
     signal.signal(signal.SIGINT, sigint_handler)
@@ -70,8 +82,9 @@ if __name__ == "__main__":
     signal.signal(signal.SIGTSTP, sigtstp_handler)
     signal.signal(signal.SIGUSR1, sigusr1_handler)
     signal.signal(signal.SIGALRM, sigalrm_handler)
+    signal.alarm(1)
 
-    sys.stderr.write(os.getpid())
+    sys.stderr.write(f'PID: {os.getpid()}\n')
 
     # Initialize parser
     parser = argparse.ArgumentParser()
@@ -89,31 +102,32 @@ if __name__ == "__main__":
     robot = Robot(args.robot_id, args.position, args.battery)
 
     # Begin CLI
-    while True:
-        action = input("""What would you like to do next?
+    print("""\n\nWhat would you like to do next?
                             mv <direction>: tries to move the robot one cell in the specified direction. (up, down, left, right). If it is possible, the robots changes its position and prints OK. If it is not possible to move in the specified direction, its position does not change and prints KO.
                             bat: prints the current battery level.
                             pos: prints the current position of the robot as a 2-dimension vector.
                             tr: checks if there is a treasure in the current position. If there is a treasure, it prints Treasure. If not, prints Water.
-                            exit: the program prints the current position of the robot and its battery level and exits.""")
+                            exit: the program prints the current position of the robot and its battery level and exits.\n""")
+    while True:
+        action = input("")
         action = action.split(' ')
         if len(action) > 1:
             direction = action[1]
         action = action[0]
-        if action != 'exit' and robot.is_suspended:
-            print("Robot {robot.id} is stopped")
+        #if action != 'exit' and robot.is_suspended:
+        #    print(f"Robot {robot.id} is stopped")
         match action:
             case 'mv':
                 robot.move(direction)
             case 'bat':
-                print(robot.battery)
+                print(f'Battery: {robot.battery}')
             case 'pos':
-                print(f'({robot.position[0]}, {robot.position[1]})')
+                print(f'Position: {robot.position[0]} {robot.position[1]}')
             case 'tr':
                 robot.has_treasure()
             case 'exit':
-                print(robot.battery)
-                print(f'({robot.position[0]}, {robot.position[1]})')
+                print(f'Position: {robot.position[0]} {robot.position[1]}')
+                print(f'Battery: {robot.battery}')
                 break
             case _:
                 print("Invalid command")
