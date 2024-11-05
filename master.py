@@ -6,10 +6,12 @@ import time
 from sensor import Sensor
 
 # Global variables
-robots = {}
-positions = {}
-pipes = {}
-treasures_found = []
+robots = {} # K = robot_id, V = PID
+positions = {} # K = robot_id, V = (row, col)
+pipes = {} # K = robot_id, V = (parent_to_child pipe, parent_from_child pipe)
+treasures_found = set()
+room_grid = None
+num_treasures = None
 
 # Signal handlers for master process
 def sigint_handler(sig, frame):
@@ -17,21 +19,26 @@ def sigint_handler(sig, frame):
     shutdown_robots()
 
 def sigquit_handler(sig, frame):
-    print("Sending SIGUSR1 to replenish battery for all robots.")
+    print("Replenishing batteries")
     for pid in robots.values():
         os.kill(pid, signal.SIGUSR1)  # Send SIGUSR1 to each robot
 
 def sigtstp_handler(sig, frame):
-    print("Sending SIGTSTP to request status from all robots.")
-    for pid in robots.values():
+    print("Sending")
+    for robot_id, pid in robots.items():
+        print(f"{robot_id} {pid}")
+        print(pipes)
         os.kill(pid, signal.SIGTSTP)  # Send SIGTSTP to each robot
+        time.sleep(.1)
+        _, parent_from_child_r = pipes[robot_id]
+        response = os.read(parent_from_child_r, 1024).decode().strip()
+        print(response)
 
 def shutdown_robots():
-    final_status = {}  # Dictionary to store final position and battery for each robot
+    final_status = {}  # K = robot_id, V = final position and battery
 
     # Send 'exit' command to each robot to request last status and initiate shutdown
     for robot_id, (parent_to_child_w, child_to_parent_r) in pipes.items():
-        # Write 'exit' command to the child process
         os.write(parent_to_child_w, b"exit\n")
         
         # Read and store the final position and battery from each robot
@@ -48,8 +55,7 @@ def shutdown_robots():
         print(response)
         print()
 
-    # Final message on treasures found or missed
-    print("All treasures found!" if len(treasures_found) == SENSOR.n_treasures() else "Some treasures remain undiscovered.")
+    print_room()
     sys.exit(0)
 
 
@@ -104,18 +110,31 @@ def move_robot(robot_id, direction):
     response = os.read(child_to_parent, 1024).decode().strip()
 
     # Process the response
-    if "Treasure" in response:
-        print(response)  # Print if the robot finds a treasure
-        treasures_found.append(positions[robot_id])  # Track the found treasure's position
-    elif "Collision" in response:
-        print(response)  # Print if there's a collision
-    elif "OK" in response:
+    if "OK" in response:
         # Update position based on robot response if movement was successful
         new_position = calculate_new_position(positions[robot_id], direction)
         positions[robot_id] = new_position
-        print(f"Robot {robot_id} status: OK; {direction} to {new_position}")
+        # Check if there is treasure in the new position:
+        os.write(child_from_parent, f"tr\n".encode())
+        response = os.read(child_to_parent, 1024).decode().strip()
+        if "Treasure" in response:
+            treasures_found.add(positions[robot_id])
+            if room_grid[positions[robot_id][0]][positions[robot_id][1]] != 'T': # Treasure was not yet discovered
+                room_grid[positions[robot_id][0]][positions[robot_id][1]] = 'T'
+                print(f"Treasure found by robot {robot_id}")
+                if len(treasures_found) == num_treasures:
+                    print("All treasures found!")
+                    shutdown_robots()
+        else:
+            room_grid[positions[robot_id][0]][positions[robot_id][1]] = '-'
+        print(f"Robot {robot_id} status: OK") # {direction} to {new_position}
     elif "KO" in response:
         print(f"Robot {robot_id} cannot move {direction}")
+        print(f"Robot {robot_id} status: 'KO'")
+        new_position = calculate_new_position(positions[robot_id], direction)
+        if new_position[0] >= 0 and new_position[0] < room_dimensions[0] and new_position[1] >= 0 and new_position[1] < room_dimensions[1]:
+            room_grid[new_position[0]][new_position[1]] =  'X'
+            
 
 def calculate_new_position(current_position, direction):
     if direction == "up":
@@ -126,10 +145,23 @@ def calculate_new_position(current_position, direction):
         return (current_position[0], current_position[1] - 1)
     elif direction == "right":
         return (current_position[0], current_position[1] + 1)
-    else:
-        print(f"Invalid direction: {direction}")
-        return current_position
+    # TODO is there action to take if input here is invalid?
 
+# Print the room layout
+def print_room():
+    grid_with_robots = [row[:] for row in room_grid]
+    for robot_id, position in positions.items():
+        row, col = position
+        if room_grid[row][col] == 'T':
+            grid_with_robots[row][col] = 'RT'
+        else: # Grid currently has '?' or '-'
+            grid_with_robots[row][col] = 'R'
+    print("Our information about the room so far:")
+    for row in grid_with_robots:
+        print(" ".join(row))
+    print()
+
+# Main program in __main__
 if __name__ == "__main__":
     # Argument parsing
     parser = argparse.ArgumentParser()
@@ -142,8 +174,10 @@ if __name__ == "__main__":
 
     # Initialize Sensor
     SENSOR = Sensor(ROOM_FILENAME)
-    num_treasures = SENSOR.n_treasures()
     room_dimensions = SENSOR.dimensions()
+    num_treasures = SENSOR.n_treasures()
+    room_grid = [['?' for _ in range(room_dimensions[1])] for _ in range(room_dimensions[0])]
+
 
     # Signal handling setup for master process
     signal.signal(signal.SIGINT, sigint_handler)
@@ -158,7 +192,22 @@ if __name__ == "__main__":
                 print(f"Invalid initial position for robot at {pos}")
                 sys.exit(1)
             start_robot(robot_id, pos, 100, ROOM_FILENAME)
-
+    
+    for robot_id, position in positions.items():
+        child_from_parent, child_to_parent = pipes[robot_id]
+        os.write(child_from_parent, f"tr\n".encode())
+        response = os.read(child_to_parent, 1024).decode().strip()
+        if "Treasure" in response:
+            treasures_found.add(positions[robot_id])
+            if room_grid[positions[robot_id][0]][positions[robot_id][1]] != 'T': # Treasure was not yet discovered
+                room_grid[positions[robot_id][0]][positions[robot_id][1]] = 'T'
+                #print(f"Treasure found by robot {robot_id}")
+                if len(treasures_found) == num_treasures:
+                    print("All treasures found!")
+                    shutdown_robots()
+        else:
+            room_grid[positions[robot_id][0]][positions[robot_id][1]] = '-'
+    print_room()
 
     # Command loop for user input
     while True:
@@ -170,38 +219,49 @@ if __name__ == "__main__":
             if target == "all":
                 for robot_id in sorted(robots):  # Move each robot sequentially
                     move_robot(robot_id, direction)
+                print_room()
             else:
                 robot_id = int(target)
                 if robot_id in pipes:
                     move_robot(robot_id, direction)
+                    print_room()
                 else:
                     print(f"No robot with id {robot_id}")
 
-        elif command == "bat":
+        elif command == "bat" and len(action) > 1:
             target = action[1]
             if target == "all":
-                for robot_id, parent_conn in pipes.items():
-                    os.write(parent_conn, b"bat\n")
+                for robot_id, (parent_to_child_w, parent_from_child_r) in pipes.items():
+                    os.write(parent_to_child_w, b"bat\n")
+                    response = os.read(parent_from_child_r, 1024).decode().strip()
+                    print(f"Robot {robot_id} battery: {response}")
             else:
                 robot_id = int(target)
                 if robot_id in pipes:
-                    parent_conn = pipes[robot_id]
-                    os.write(parent_conn, b"bat\n")
+                    parent_to_child_w, parent_from_child_r = pipes[robot_id]
+                    os.write(parent_to_child_w, b"bat\n")
+                    response = os.read(parent_from_child_r, 1024).decode().strip()
+                    print(f"Robot {robot_id} battery: {response}")
                 else:
                     print(f"No robot with id {robot_id}")
 
         elif command == "pos":
             target = action[1]
             if target == "all":
-                for robot_id, parent_conn in pipes.items():
-                    os.write(parent_conn, b"pos\n")
+                for robot_id, (parent_to_child_w, parent_from_child_r) in pipes.items():
+                    os.write(parent_to_child_w, b"pos\n")
+                    response = os.read(parent_from_child_r, 1024).decode().strip()
+                    print(f"Robot {robot_id} position: {response}")
             else:
                 robot_id = int(target)
                 if robot_id in pipes:
-                    parent_conn = pipes[robot_id]
-                    os.write(parent_conn, b"pos\n")
+                    parent_to_child_w, parent_from_child_r = pipes[robot_id]
+                    os.write(parent_to_child_w, b"pos\n")
+                    response = os.read(parent_from_child_r, 1024).decode().strip()
+                    print(f"Robot {robot_id} position: {response}")
                 else:
                     print(f"No robot with id {robot_id}")
+
 
         elif command == "exit":
             shutdown_robots()
