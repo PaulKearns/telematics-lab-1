@@ -14,7 +14,7 @@ class Robot:
     def __init__(self, id, position=[0, 0], battery=100):
         self.id = id
         self.battery = battery
-        self.is_suspended = False # Used to mark the robot as suspended
+        self.is_suspended = False  # Used to mark the robot as suspended
         # Check if initial position is valid
         if SENSOR.with_obstacle(position[0], position[1]):
             self.position = position
@@ -24,10 +24,10 @@ class Robot:
 
     # Attempt to move the robot in the given direction
     def move(self, direction):
-        if self.is_suspended: # Do not perform command if suspended
+        if self.is_suspended:  # Do not perform command if suspended
             print(f"Robot {self.id} is stopped")
             return
-        success = False # Record whether move was successful, from sensor
+        success = False  # Record whether move was successful, from sensor
         if self.battery >= 5:
             if direction == "up":
                 if SENSOR.with_obstacle(self.position[0] - 1, self.position[1]):
@@ -49,11 +49,11 @@ class Robot:
         if success:
             print("OK")
             self.battery -= 5
-        else: # Insufficient battery to move
+        else:  # Insufficient battery to move
             print(f"Robot 3 cannot move {direction}\nKO")
 
     def has_treasure(self):
-        if self.is_suspended: # Do not perform command if suspended
+        if self.is_suspended:  # Do not perform command if suspended
             print(f"Robot {self.id} is stopped")
             return
         if SENSOR.with_treasure(self.position[0], self.position[1]):
@@ -62,13 +62,13 @@ class Robot:
             print(f"Water at {self.position[0]} {self.position[1]}")
 
     def print_battery(self):
-        if self.is_suspended: # Do not perform command if suspended
+        if self.is_suspended:  # Do not perform command if suspended
             print(f"Robot {self.id} is stopped")
             return
         print(f'Battery: {robot.battery}')
 
     def print_position(self):
-        if self.is_suspended: # Do not perform command if suspended
+        if self.is_suspended:  # Do not perform command if suspended
             print(f"Robot {self.id} is stopped")
             return
         print(f'Position: {robot.position[0]} {robot.position[1]}')
@@ -83,15 +83,18 @@ class Robot:
 if __name__ == "__main__":
     def sigint_handler(sig, frame):
         robot.is_suspended = True
-        signal.signal(signal.SIGALRM, signal.SIG_IGN) # Ignore sigalrm handler to pause battery
+        # Ignore sigalrm handler to pause battery
+        signal.signal(signal.SIGALRM, signal.SIG_IGN)
 
     def sigquit_handler(sig, frame):
         robot.is_suspended = False
         signal.signal(signal.SIGALRM, sigalrm_handler)
-        signal.alarm(1) # Restart alarm
+        signal.alarm(1)  # Restart alarm
 
     def sigtstp_handler(sig, frame):
-        print(f"id: {robot.id} P: {robot.position} Bat: {robot.battery}", flush=True) # Flush so that output can be read by master
+        # Flush so that output can be read by master
+        print(
+            f"id: {robot.id} P: {robot.position} Bat: {robot.battery}", flush=True)
 
     def sigusr1_handler(sig, frame):
         robot.battery = 100
@@ -114,7 +117,7 @@ if __name__ == "__main__":
     # Use argparse to parse command line arguments
     parser = argparse.ArgumentParser()
 
-    # Adding mandatory and optional arguments 
+    # Adding mandatory and optional arguments
     parser.add_argument('robot_id')
     parser.add_argument('-f', '--filename')
     parser.add_argument('-pos', '--position', nargs=2,

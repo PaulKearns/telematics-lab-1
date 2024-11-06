@@ -15,6 +15,7 @@ num_treasures = None
 
 # Signal handlers for master
 
+
 def sigint_handler(sig, frame):
     print("\nReceived SIGINT. Shutting down")
     shutdown_robots()
@@ -68,7 +69,7 @@ def start_robot(robot_id, position, battery, filename):
     pid = os.fork()
 
     if pid == 0:  # Child process
-        # Close unused ends of pipes in the child process
+        # Close unused ends of pipes
         os.close(parent_to_child)
         os.close(parent_from_child)
 
@@ -78,7 +79,6 @@ def start_robot(robot_id, position, battery, filename):
         # Redirect child's stdout to write end of other pipe
         os.dup2(child_to_parent, sys.stdout.fileno())
 
-        # Close the original file descriptors after redirection
         os.close(child_from_parent)
         os.close(child_to_parent)
 
@@ -89,8 +89,8 @@ def start_robot(robot_id, position, battery, filename):
 
     else:  # Parent process
         # Close unused ends of pipes
-        os.close(child_from_parent) 
-        os.close(child_to_parent)  
+        os.close(child_from_parent)
+        os.close(child_to_parent)
 
         print(f'Robot {robot_id} PID: {pid} Position: {position}')
 
@@ -155,6 +155,7 @@ def calculate_new_position(current_position, direction):
 
 def print_room():
     grid_with_robots = [row[:] for row in room_grid]
+    # Add 'R' in front of the current square if it is 'T'
     for robot_id, position in positions.items():
         row, col = position
         if room_grid[row][col] == 'T':
@@ -167,7 +168,6 @@ def print_room():
     print()
 
 
-# Main program in __main__
 if __name__ == "__main__":
     # Use argparse to parse command line arguments
     parser = argparse.ArgumentParser()
@@ -185,7 +185,7 @@ if __name__ == "__main__":
     room_grid = [['?' for _ in range(room_dimensions[1])]
                  for _ in range(room_dimensions[0])]
 
-    # Signal handling setup for master process
+    # Signal handling setup
     signal.signal(signal.SIGINT, sigint_handler)
     signal.signal(signal.SIGQUIT, sigquit_handler)
     signal.signal(signal.SIGTSTP, sigtstp_handler)
@@ -199,6 +199,7 @@ if __name__ == "__main__":
                 sys.exit(1)
             start_robot(robot_id, pos, 100, ROOM_FILENAME)
 
+    # Check if there is treasure at starting squares
     for robot_id, position in positions.items():
         child_from_parent, child_to_parent = pipes[robot_id]
         os.write(child_from_parent, f"tr\n".encode())
@@ -215,7 +216,7 @@ if __name__ == "__main__":
             room_grid[positions[robot_id][0]][positions[robot_id][1]] = '-'
     print_room()
 
-    # Command loop for user input
+    # Begin CLI for user commands
     while True:
         action = input("Command: ").strip().split()
         command = action[0]
@@ -233,7 +234,7 @@ if __name__ == "__main__":
                     print_room()
                 else:
                     print(f"No robot with id {robot_id}")
-
+        # Case: send bat command to target(s)
         elif command == "bat" and len(action) > 1:
             target = action[1]
             if target == "all":
@@ -252,8 +253,7 @@ if __name__ == "__main__":
                     print(f"Robot {robot_id} battery: {response}")
                 else:
                     print(f"No robot with id {robot_id}")
-
-        elif command == "pos":
+        elif command == "pos":  # Case: send pos command to target(s)
             target = action[1]
             if target == "all":
                 for robot_id, (parent_to_child_w, parent_from_child_r) in pipes.items():
@@ -271,7 +271,6 @@ if __name__ == "__main__":
                     print(f"Robot {robot_id} position: {response}")
                 else:
                     print(f"No robot with id {robot_id}")
-
         # Case: send SIGINT to target(s) to suspend
         elif command == "suspend":
             target = action[1]
@@ -287,7 +286,6 @@ if __name__ == "__main__":
                     os.kill(robots[robot_id], signal.SIGINT)
                 else:
                     print(f"No robot with id {robot_id}")
-
         # Case: send SIGQUIT to target(s) to resume
         elif command == "resume":
             target = action[1]
@@ -302,10 +300,8 @@ if __name__ == "__main__":
                     os.kill(robots[robot_id], signal.SIGQUIT)
                 else:
                     print(f"No robot with id {robot_id}")
-
         elif command == "exit":
             shutdown_robots()
             break
-
         else:
             print("Invalid command")
