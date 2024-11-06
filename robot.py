@@ -50,7 +50,7 @@ class Robot:
             print("OK")
             self.battery -= 5
         else:  # Insufficient battery to move
-            print(f"Robot 3 cannot move {direction}\nKO")
+            print(f"Robot {self.id} cannot move {direction}\nKO")
 
     def has_treasure(self):
         if self.is_suspended:  # Do not perform command if suspended
