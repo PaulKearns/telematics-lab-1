@@ -4,6 +4,7 @@ import sys
 import signal
 from sensor import Sensor
 
+# Global variables
 FILENAME = None
 SENSOR = None
 
@@ -14,18 +15,19 @@ class Robot:
         self.id = id
         self.battery = battery
         self.is_suspended = False # Used to mark the robot as suspended
+        # Check if initial position is valid
         if SENSOR.with_obstacle(position[0], position[1]):
             self.position = position
         else:
             print("Invalid initial position")
-            exit()
+            sys.exit(1)
 
     # Attempt to move the robot in the given direction
     def move(self, direction):
-        if self.is_suspended:
+        if self.is_suspended: # Do not perform command if suspended
             print(f"Robot {self.id} is stopped")
             return
-        success = False
+        success = False # Record whether move was successful, from sensor
         if self.battery >= 5:
             if direction == "up":
                 if SENSOR.with_obstacle(self.position[0] - 1, self.position[1]):
@@ -47,11 +49,11 @@ class Robot:
         if success:
             print("OK")
             self.battery -= 5
-        else:
+        else: # Insufficient battery to move
             print(f"Robot 3 cannot move {direction}\nKO")
 
     def has_treasure(self):
-        if self.is_suspended:
+        if self.is_suspended: # Do not perform command if suspended
             print(f"Robot {self.id} is stopped")
             return
         if SENSOR.with_treasure(self.position[0], self.position[1]):
@@ -60,35 +62,36 @@ class Robot:
             print(f"Water at {self.position[0]} {self.position[1]}")
 
     def print_battery(self):
-        if self.is_suspended:
+        if self.is_suspended: # Do not perform command if suspended
             print(f"Robot {self.id} is stopped")
             return
         print(f'Battery: {robot.battery}')
 
     def print_position(self):
-        if self.is_suspended:
+        if self.is_suspended: # Do not perform command if suspended
             print(f"Robot {self.id} is stopped")
             return
         print(f'Position: {robot.position[0]} {robot.position[1]}')
 
     def shutdown(self):
+        # Print robot information before exiting
         self.print_position()
         self.print_battery()
-        exit(0)
+        sys.exit(0)
 
 
 if __name__ == "__main__":
     def sigint_handler(sig, frame):
         robot.is_suspended = True
-        signal.signal(signal.SIGALRM, signal.SIG_IGN)
+        signal.signal(signal.SIGALRM, signal.SIG_IGN) # Ignore sigalrm handler to pause battery
 
     def sigquit_handler(sig, frame):
         robot.is_suspended = False
         signal.signal(signal.SIGALRM, sigalrm_handler)
-        signal.alarm(1)
+        signal.alarm(1) # Restart alarm
 
     def sigtstp_handler(sig, frame):
-        print(f"id: {robot.id} P: {robot.position} Bat: {robot.battery}", flush=True)
+        print(f"id: {robot.id} P: {robot.position} Bat: {robot.battery}", flush=True) # Flush so that output can be read by master
 
     def sigusr1_handler(sig, frame):
         robot.battery = 100
@@ -96,6 +99,7 @@ if __name__ == "__main__":
     def sigalrm_handler(sig, frame):
         if robot.battery > 0:
             robot.battery -= 1
+        # Restart alarm to decrease battery every second
         signal.alarm(1)
 
     signal.signal(signal.SIGINT, sigint_handler)
@@ -107,10 +111,10 @@ if __name__ == "__main__":
 
     sys.stderr.write(f'PID: {os.getpid()}\n')
 
-    # Initialize parser
+    # Use argparse to parse command line arguments
     parser = argparse.ArgumentParser()
 
-    # Adding optional argument
+    # Adding mandatory and optional arguments 
     parser.add_argument('robot_id')
     parser.add_argument('-f', '--filename')
     parser.add_argument('-pos', '--position', nargs=2,
@@ -135,9 +139,11 @@ if __name__ == "__main__":
     while True:
         action = input("")
         action = action.split(' ')
+        # Analyze second argument in case command is mv
         if len(action) > 1:
             direction = action[1]
         action = action[0]
+        # Call appropriate function based on case
         match action:
             case 'mv':
                 robot.move(direction)
