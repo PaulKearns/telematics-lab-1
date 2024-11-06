@@ -30,8 +30,9 @@ def sigquit_handler(sig, frame):
 
 def sigtstp_handler(sig, frame):
     for robot_id, pid in robots.items():
-        os.kill(pid, signal.SIGTSTP)  # Send SIGTSTP to each robot
-        time.sleep(.1)
+        # Sending this signal is commented out because robots already receive the sigtstp. They don't need to receive it twice
+        # os.kill(pid, signal.SIGTSTP)  # Send SIGTSTP to each robot
+        # time.sleep(.1)
         _, parent_from_child_r = pipes[robot_id]
         response = os.read(parent_from_child_r, 1024).decode().strip()
         print(response)
