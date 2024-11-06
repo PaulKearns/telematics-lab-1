@@ -151,7 +151,6 @@ def calculate_new_position(current_position, direction):
         return (current_position[0], current_position[1] - 1)
     elif direction == "right":
         return (current_position[0], current_position[1] + 1)
-    # TODO is there action to take if input here is invalid?
 
 
 def print_room():
