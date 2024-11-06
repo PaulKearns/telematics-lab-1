@@ -87,7 +87,7 @@ if __name__ == "__main__":
         signal.alarm(1)
 
     def sigtstp_handler(sig, frame):
-        print(f"id: {robot.id} P: {robot.position} Bat: {robot.battery}")
+        print(f"id: {robot.id} P: {robot.position} Bat: {robot.battery}", flush=True)
 
     def sigusr1_handler(sig, frame):
         robot.battery = 100

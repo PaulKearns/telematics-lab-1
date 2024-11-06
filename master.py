@@ -24,10 +24,7 @@ def sigquit_handler(sig, frame):
         os.kill(pid, signal.SIGUSR1)  # Send SIGUSR1 to each robot
 
 def sigtstp_handler(sig, frame):
-    print("Sending")
     for robot_id, pid in robots.items():
-        print(f"{robot_id} {pid}")
-        print(pipes)
         os.kill(pid, signal.SIGTSTP)  # Send SIGTSTP to each robot
         time.sleep(.1)
         _, parent_from_child_r = pipes[robot_id]
