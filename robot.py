@@ -13,16 +13,17 @@ class Robot:
     def __init__(self, id, position=[0, 0], battery=100):
         self.id = id
         self.battery = battery
-        self.is_suspended = False
+        self.is_suspended = False # Used to mark the robot as suspended
         if SENSOR.with_obstacle(position[0], position[1]):
             self.position = position
         else:
             print("Invalid initial position")
             exit()
 
+    # Attempt to move the robot in the given direction
     def move(self, direction):
         if self.is_suspended:
-            print(f"Robot 3 is stopped")
+            print(f"Robot {self.id} is stopped")
             return
         success = False
         if self.battery >= 5:
@@ -51,7 +52,7 @@ class Robot:
 
     def has_treasure(self):
         if self.is_suspended:
-            print(f"Robot 3 is stopped")
+            print(f"Robot {self.id} is stopped")
             return
         if SENSOR.with_treasure(self.position[0], self.position[1]):
             print(f"Treasure at {self.position[0]} {self.position[1]}")
@@ -60,13 +61,13 @@ class Robot:
 
     def print_battery(self):
         if self.is_suspended:
-            print(f"Robot 3 is stopped")
+            print(f"Robot {self.id} is stopped")
             return
         print(f'Battery: {robot.battery}')
 
     def print_position(self):
         if self.is_suspended:
-            print(f"Robot 3 is stopped")
+            print(f"Robot {self.id} is stopped")
             return
         print(f'Position: {robot.position[0]} {robot.position[1]}')
 
@@ -137,8 +138,6 @@ if __name__ == "__main__":
         if len(action) > 1:
             direction = action[1]
         action = action[0]
-        # if action != 'exit' and robot.is_suspended:
-        #    print(f"Robot {robot.id} is stopped")
         match action:
             case 'mv':
                 robot.move(direction)

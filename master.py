@@ -24,6 +24,7 @@ def sigquit_handler(sig, frame):
         os.kill(pid, signal.SIGUSR1)  # Send SIGUSR1 to each robot
 
 def sigtstp_handler(sig, frame):
+    print(robots)
     for robot_id, pid in robots.items():
         os.kill(pid, signal.SIGTSTP)  # Send SIGTSTP to each robot
         time.sleep(.1)
@@ -45,7 +46,6 @@ def shutdown_robots():
         print(f"Robot {robots[robot_id]} finished with status {status}")
 
 
-    # Print each robot's final message (position and battery) from final_status
     for robot_id, response in final_status.items():
         pid = robots[robot_id]
         print(f"Robot {robot_id} pid: {robots[robot_id]} last message:")
@@ -65,14 +65,12 @@ def start_robot(robot_id, position, battery, filename):
 
     if pid == 0:  # Child process
         # Close unused ends of pipes in the child process
-        os.close(parent_to_child)       # Close parent's write end in child
-        os.close(parent_from_child)     # Close parent's read end in child
+        os.close(parent_to_child)
+        os.close(parent_from_child)
 
-        # Redirect child's stdin to read end of Parent-to-Child pipe
-        os.dup2(child_from_parent, sys.stdin.fileno())
+        os.dup2(child_from_parent, sys.stdin.fileno()) # Redirect child's stdin to read end of pipe
 
-        # Redirect child's stdout to write end of Child-to-Parent pipe
-        os.dup2(child_to_parent, sys.stdout.fileno())
+        os.dup2(child_to_parent, sys.stdout.fileno()) # Redirect child's stdout to write end of other pipe
 
         # Close the original file descriptors after redirection
         os.close(child_from_parent)
@@ -97,40 +95,43 @@ def start_robot(robot_id, position, battery, filename):
 
 # Function to send move command and handle responses for mv <robot_id/all> <direction>
 def move_robot(robot_id, direction):
-    # Get the write and read ends of the pipes for the robot
+    new_position = calculate_new_position(positions[robot_id], direction)
+
+    # Check for potential collisions first
+    for other_robot_id, position in positions.items():
+        if new_position == position and robot_id != other_robot_id:
+            print(f"Collision between robot {robot_id} and {other_robot_id}")
+            return
+
+    # Write the move command to the child and wait for response
     child_from_parent, child_to_parent = pipes[robot_id]
-    
-    # Write the move command to the child
     os.write(child_from_parent, f"mv {direction}\n".encode())
-    
-    # Read the response from the child
     response = os.read(child_to_parent, 1024).decode().strip()
 
     # Process the response
     if "OK" in response:
-        # Update position based on robot response if movement was successful
-        new_position = calculate_new_position(positions[robot_id], direction)
         positions[robot_id] = new_position
-        # Check if there is treasure in the new position:
+        # Check if there is treasure in the new position
         os.write(child_from_parent, f"tr\n".encode())
         response = os.read(child_to_parent, 1024).decode().strip()
         if "Treasure" in response:
             treasures_found.add(positions[robot_id])
             if room_grid[positions[robot_id][0]][positions[robot_id][1]] != 'T': # Treasure was not yet discovered
                 room_grid[positions[robot_id][0]][positions[robot_id][1]] = 'T'
-                print(f"Treasure found by robot {robot_id}")
+                print(f"Treasure found by robot {robot_id}!")
                 if len(treasures_found) == num_treasures:
                     print("All treasures found!")
                     shutdown_robots()
         else:
             room_grid[positions[robot_id][0]][positions[robot_id][1]] = '-'
-        print(f"Robot {robot_id} status: OK") # {direction} to {new_position}
+        print(f"Robot {robot_id} status: OK")
     elif "KO" in response:
         print(f"Robot {robot_id} cannot move {direction}")
-        print(f"Robot {robot_id} status: 'KO'")
-        new_position = calculate_new_position(positions[robot_id], direction)
+        print(f"Robot {robot_id} status: KO")
         if new_position[0] >= 0 and new_position[0] < room_dimensions[0] and new_position[1] >= 0 and new_position[1] < room_dimensions[1]:
             room_grid[new_position[0]][new_position[1]] =  'X'
+    elif "stopped" in response:
+        print(f"Robot {robot_id} is stopped")
             
 
 def calculate_new_position(current_position, direction):
@@ -198,7 +199,6 @@ if __name__ == "__main__":
             treasures_found.add(positions[robot_id])
             if room_grid[positions[robot_id][0]][positions[robot_id][1]] != 'T': # Treasure was not yet discovered
                 room_grid[positions[robot_id][0]][positions[robot_id][1]] = 'T'
-                #print(f"Treasure found by robot {robot_id}")
                 if len(treasures_found) == num_treasures:
                     print("All treasures found!")
                     shutdown_robots()
@@ -256,6 +256,34 @@ if __name__ == "__main__":
                     os.write(parent_to_child_w, b"pos\n")
                     response = os.read(parent_from_child_r, 1024).decode().strip()
                     print(f"Robot {robot_id} position: {response}")
+                else:
+                    print(f"No robot with id {robot_id}")
+
+        # Case: send SIGINT to target(s) to suspend
+        elif command == "suspend":
+            target = action[1]
+            if target == "all":
+                print("Suspending all robots")
+                for pid in robots.values():
+                    os.kill(pid, signal.SIGINT)
+            else:
+                if target in robots:
+                    print(f"Suspending robot {target}")
+                    os.kill(robots[target], signal.SIGINT)
+                else:
+                    print(f"No robot with id {robot_id}")
+        
+        # Case: send SIGQUIT to target(s) to resume
+        elif command == "resume":
+            target = action[1]
+            if target == "all":
+                print("Resuming all robots")
+                for pid in robots.values():
+                    os.kill(pid, signal.SIGQUIT)
+            else:
+                if target in robots:
+                    print(f"Resuming robot {target}")
+                    os.kill(robots[target], signal.SIGQUIT)
                 else:
                     print(f"No robot with id {robot_id}")
 
