@@ -24,7 +24,6 @@ def sigquit_handler(sig, frame):
         os.kill(pid, signal.SIGUSR1)  # Send SIGUSR1 to each robot
 
 def sigtstp_handler(sig, frame):
-    print(robots)
     for robot_id, pid in robots.items():
         os.kill(pid, signal.SIGTSTP)  # Send SIGTSTP to each robot
         time.sleep(.1)
@@ -262,14 +261,16 @@ if __name__ == "__main__":
         # Case: send SIGINT to target(s) to suspend
         elif command == "suspend":
             target = action[1]
+            print(target)
             if target == "all":
                 print("Suspending all robots")
                 for pid in robots.values():
                     os.kill(pid, signal.SIGINT)
             else:
-                if target in robots:
-                    print(f"Suspending robot {target}")
-                    os.kill(robots[target], signal.SIGINT)
+                robot_id = int(target)
+                if robot_id in robots:
+                    print(f"Suspending robot {robot_id}")
+                    os.kill(robots[robot_id], signal.SIGINT)
                 else:
                     print(f"No robot with id {robot_id}")
         
@@ -281,9 +282,10 @@ if __name__ == "__main__":
                 for pid in robots.values():
                     os.kill(pid, signal.SIGQUIT)
             else:
-                if target in robots:
-                    print(f"Resuming robot {target}")
-                    os.kill(robots[target], signal.SIGQUIT)
+                robot_id = int(target)
+                if robot_id in robots:
+                    print(f"Resuming robot {robot_id}")
+                    os.kill(robots[robot_id], signal.SIGQUIT)
                 else:
                     print(f"No robot with id {robot_id}")
 
